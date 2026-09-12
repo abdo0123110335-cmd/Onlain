@@ -1,13 +1,9 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
-/// يوفّر تحميل/مشاركة الصور المرفوعة (روابط Cloudinary) وملفات PDF من داخل
-/// التطبيق. نستخدم نافذة المشاركة القياسية بالنظام (Share Sheet) بدل الكتابة
-/// المباشرة على التخزين، لأنها تعمل بدون أي أذونات إضافية على كل الأجهزة
-/// وتتيح للمستخدم اختيار "حفظ في الملفات" أو أي تطبيق آخر يريده.
 class DownloadService {
   DownloadService._();
   static final DownloadService instance = DownloadService._();
@@ -17,30 +13,23 @@ class DownloadService {
     if (response.statusCode != 200) {
       throw Exception('تعذر تحميل الصورة (كود ${response.statusCode})');
     }
-    final ext = _guessImageExtension(url, response.headers['content-type']);
-    await _shareBytes(response.bodyBytes, '$fileName$ext');
+    final pdfBytes = await _wrapImageInPdf(response.bodyBytes);
+    await Printing.sharePdf(bytes: pdfBytes, filename: '$fileName.pdf');
   }
 
   Future<void> sharePdfBytes(Uint8List bytes, {String fileName = 'invoice.pdf'}) async {
-    await _shareBytes(bytes, fileName);
+    await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 
-  Future<void> _shareBytes(Uint8List bytes, String fileName) async {
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsBytes(bytes, flush: true);
-    await Share.shareXFiles([XFile(file.path)]);
-  }
-
-  String _guessImageExtension(String url, String? contentType) {
-    if (contentType != null) {
-      if (contentType.contains('png')) return '.png';
-      if (contentType.contains('webp')) return '.webp';
-      if (contentType.contains('jpeg') || contentType.contains('jpg')) return '.jpg';
-    }
-    final lower = url.toLowerCase();
-    if (lower.contains('.png')) return '.png';
-    if (lower.contains('.webp')) return '.webp';
-    return '.jpg';
+  Future<Uint8List> _wrapImageInPdf(Uint8List imageBytes) async {
+    final doc = pw.Document();
+    final image = pw.MemoryImage(imageBytes);
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) => pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
+      ),
+    );
+    return doc.save();
   }
 }
