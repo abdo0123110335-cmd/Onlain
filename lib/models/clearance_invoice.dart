@@ -26,6 +26,8 @@ class ItemCategory {
         return 'إذن الشركة';
       case quality:
         return 'رسوم الجودة';
+      case 'other_docs':
+        return 'مستندات أخرى';
       case fee:
         return 'أتعاب الكشف والخدمات';
       case transport:

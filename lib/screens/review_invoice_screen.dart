@@ -59,9 +59,9 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
   late TextEditingController declarationCtrl;
   late TextEditingController vesselCtrl;
   late TextEditingController containerCountCtrl;
+  late TextEditingController commodityCtrl;
 
   final List<_ItemRow> _items = [];
-  String? _itemsError;
   bool _showAdvanced = false;
 
   List<Client> availableClients = [];
@@ -79,6 +79,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
     declarationCtrl = TextEditingController(text: widget.ocrResult.declarationNo);
     vesselCtrl = TextEditingController(text: widget.ocrResult.vesselName);
     containerCountCtrl = TextEditingController();
+    commodityCtrl = TextEditingController();
 
     if (widget.ocrResult.items.isNotEmpty) {
       widget.ocrResult.items.forEach((desc, amount) {
@@ -86,7 +87,9 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
       });
     } else {
       _items.add(_ItemRow(
-        desc: DocType.shortTitle(widget.docType),
+        // في حالة "مستندات أخرى" نترك البيان فارغاً ليكتب المستخدم اسم
+        // المستند الفعلي بنفسه (شهادة منشأ، تصريح، مراسلة...)، بدل نص عام.
+        desc: widget.docType == DocType.other ? '' : DocType.shortTitle(widget.docType),
         amount: widget.ocrResult.totalAmount > 0 ? widget.ocrResult.totalAmount.toStringAsFixed(2) : '',
       ));
     }
@@ -117,26 +120,22 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
     return total;
   }
 
+  /// البنود التي سيتم فعلياً إضافتها للفاتورة (لها مبلغ أكبر من صفر). بعض
+  /// المستندات (مثل شهادة الجودة أو مراسلة) تُرفع للتوثيق فقط بدون أي رسوم،
+  /// فلا داعي لإدراجها كبند مالي في الفاتورة النهائية.
+  List<_ItemRow> get _itemsWithAmount =>
+      _items.where((it) => (double.tryParse(it.amountCtrl.text.trim()) ?? 0) > 0).toList();
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final validItems = _items
-        .where((it) =>
-            it.descCtrl.text.trim().isNotEmpty && (double.tryParse(it.amountCtrl.text.trim()) ?? 0) > 0)
-        .toList();
-
-    if (validItems.isEmpty) {
-      setState(() => _itemsError = 'أدخل المبلغ (رقم أكبر من صفر) قبل الحفظ');
-      return;
-    }
-    setState(() => _itemsError = null);
     setState(() => isSaving = true);
 
     try {
       if (isManager) {
-        await _saveDirectly(validItems);
+        await _saveDirectly(_itemsWithAmount);
       } else {
-        await _submitForReview(validItems);
+        await _submitForReview(_itemsWithAmount);
       }
     } catch (e) {
       if (!mounted) return;
@@ -147,7 +146,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
 
   // ---------------- مسار المدير: حفظ مباشر ----------------
 
-  Future<void> _saveDirectly(List<_ItemRow> validItems) async {
+  Future<void> _saveDirectly(List<_ItemRow> itemsWithAmount) async {
     final now = DateFormat('yyyy/MM/dd').format(DateTime.now());
     final billNo = billOfLadingCtrl.text.trim();
 
@@ -156,6 +155,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
 
     final existingBol = await FirestoreService.instance.findBillOfLading(billNo, client.id);
     final containerCount = int.tryParse(containerCountCtrl.text.trim()) ?? existingBol?.containerCount ?? 0;
+    final commodity = commodityCtrl.text.trim().isEmpty ? (existingBol?.commodityType ?? '') : commodityCtrl.text.trim();
     final bolId = existingBol?.id ?? const Uuid().v4();
     final bol = BillOfLading(
       id: bolId,
@@ -164,6 +164,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
       clientName: client.name,
       vesselName: vesselCtrl.text.trim().isEmpty ? (existingBol?.vesselName ?? '') : vesselCtrl.text.trim(),
       containerCount: containerCount,
+      commodityType: commodity,
       date: existingBol?.date ?? now,
     );
     await FirestoreService.instance.insertBillOfLading(bol);
@@ -187,23 +188,25 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
       await FirestoreService.instance.insertShipmentDocument(doc);
     }
 
-    final invoice = await FirestoreService.instance.getOrCreateInvoiceForBillOfLading(
-      bolId,
-      clientId: client.id,
-      clientName: client.name,
-      billOfLading: billNo,
-      vesselName: bol.vesselName,
-      containerCount: containerCount,
-      declarationNo: declarationCtrl.text.trim(),
-    );
-    final newItems = validItems
-        .map((it) => InvoiceItem(
-              description: it.descCtrl.text.trim(),
-              amount: double.tryParse(it.amountCtrl.text.trim()) ?? 0,
-              category: widget.docType,
-            ))
-        .toList();
-    await FirestoreService.instance.addItemsToInvoice(invoice, newItems);
+    if (itemsWithAmount.isNotEmpty) {
+      final invoice = await FirestoreService.instance.getOrCreateInvoiceForBillOfLading(
+        bolId,
+        clientId: client.id,
+        clientName: client.name,
+        billOfLading: billNo,
+        vesselName: bol.vesselName,
+        containerCount: containerCount,
+        declarationNo: declarationCtrl.text.trim(),
+      );
+      final newItems = itemsWithAmount
+          .map((it) => InvoiceItem(
+                description: it.descCtrl.text.trim(),
+                amount: double.tryParse(it.amountCtrl.text.trim()) ?? 0,
+                category: widget.docType,
+              ))
+          .toList();
+      await FirestoreService.instance.addItemsToInvoice(invoice, newItems);
+    }
 
     if (!mounted) return;
     setState(() => isSaving = false);
@@ -217,7 +220,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
 
   // ---------------- مسار الموظف: إرسال للمراجعة ----------------
 
-  Future<void> _submitForReview(List<_ItemRow> validItems) async {
+  Future<void> _submitForReview(List<_ItemRow> itemsWithAmount) async {
     final billNo = billOfLadingCtrl.text.trim();
     final clientName = clientNameCtrl.text.trim();
 
@@ -237,7 +240,9 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
       clientNameInput: clientName,
       existingClientId: selectedClient?.id,
       billNumber: billNo,
-      items: validItems
+      containerCount: int.tryParse(containerCountCtrl.text.trim()) ?? 0,
+      commodityType: commodityCtrl.text.trim(),
+      items: itemsWithAmount
           .map((it) => PendingItem(
                 description: it.descCtrl.text.trim(),
                 amount: double.tryParse(it.amountCtrl.text.trim()) ?? 0,
@@ -267,6 +272,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
     declarationCtrl.dispose();
     vesselCtrl.dispose();
     containerCountCtrl.dispose();
+    commodityCtrl.dispose();
     for (final item in _items) {
       item.dispose();
     }
@@ -366,6 +372,36 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
             ),
             const SizedBox(height: 20),
 
+            if (widget.docType == DocType.ports) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: containerCountCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'عدد الحاويات',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: commodityCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'الصنف',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -392,7 +428,12 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
                         flex: 3,
                         child: TextFormField(
                           controller: item.descCtrl,
-                          decoration: const InputDecoration(labelText: 'البيان', border: OutlineInputBorder(), isDense: true),
+                          decoration: InputDecoration(
+                            labelText: widget.docType == DocType.other ? 'اسم المستند *' : 'البيان',
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty ? 'مطلوب' : null,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -401,7 +442,11 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
                         child: TextFormField(
                           controller: item.amountCtrl,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'المبلغ', border: OutlineInputBorder(), isDense: true),
+                          decoration: const InputDecoration(
+                            labelText: 'المبلغ (اتركه فارغاً إن لم يوجد)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -415,10 +460,13 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
                 );
               },
             ),
-            if (_itemsError != null)
+            if (_itemsTotal == 0)
               Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 4),
-                child: Text(_itemsError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                child: Text(
+                  'لم يتم إدخال أي مبلغ - سيُحفظ المستند للتوثيق فقط بدون إضافته كبند في الفاتورة.',
+                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+                ),
               ),
             Align(
               alignment: Alignment.centerLeft,
@@ -456,15 +504,6 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                TextFormField(
-                  controller: containerCountCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'عدد الحاويات',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.inventory_2_outlined),
-                  ),
-                ),
               ],
               const SizedBox(height: 25),
             ],

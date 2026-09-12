@@ -11,14 +11,16 @@ class PendingItem {
   );
 }
 
-/// مستند رفعه موظف (مواني/جمارك/أرضيات/إذن) وينتظر مراجعة واعتماد المدير
-/// قبل أن يُحفظ فعلياً داخل ملف العميل وقسم الفواتير.
+/// مستند رفعه موظف (مواني/جمارك/أرضيات/إذن/جودة/أخرى) وينتظر مراجعة واعتماد
+/// المدير قبل أن يُحفظ فعلياً داخل ملف العميل وقسم الفواتير.
 class PendingDocument {
   String id;
   String docType;
   String clientNameInput; // الاسم كما كتبه الموظف
   String? existingClientId; // إن كان مطابقاً لعميل معتمد سابقاً
   String billNumber;
+  int containerCount;
+  String commodityType;
   List<PendingItem> items;
   List<String> imageUrls;
   String uploadedByUid;
@@ -35,6 +37,8 @@ class PendingDocument {
     required this.clientNameInput,
     this.existingClientId,
     required this.billNumber,
+    this.containerCount = 0,
+    this.commodityType = '',
     required this.items,
     required this.imageUrls,
     required this.uploadedByUid,
@@ -53,6 +57,8 @@ class PendingDocument {
     'clientNameInput': clientNameInput,
     'existingClientId': existingClientId,
     'billNumber': billNumber,
+    'containerCount': containerCount,
+    'commodityType': commodityType,
     'items': items.map((i) => i.toMap()).toList(),
     'imageUrls': imageUrls,
     'uploadedByUid': uploadedByUid,
@@ -70,6 +76,8 @@ class PendingDocument {
     clientNameInput: map['clientNameInput'] ?? '',
     existingClientId: map['existingClientId'],
     billNumber: map['billNumber'] ?? '',
+    containerCount: (map['containerCount'] as num?)?.toInt() ?? 0,
+    commodityType: map['commodityType'] ?? '',
     items: ((map['items'] as List?) ?? []).map((e) => PendingItem.fromMap(Map<String, dynamic>.from(e))).toList(),
     imageUrls: List<String>.from(map['imageUrls'] ?? []),
     uploadedByUid: map['uploadedByUid'] ?? '',

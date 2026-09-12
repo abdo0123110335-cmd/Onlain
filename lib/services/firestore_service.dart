@@ -229,7 +229,8 @@ class FirestoreService {
         clientId: client.id,
         clientName: client.name,
         vesselName: '',
-        containerCount: 0,
+        containerCount: pd.containerCount,
+        commodityType: pd.commodityType,
         date: _today(),
       );
       await insertBillOfLading(bol);

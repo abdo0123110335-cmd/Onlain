@@ -330,6 +330,23 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  Future<void> _downloadAllInGroup(String docType, List<ShipmentDocument> docs) async {
+    final urls = docs.map((d) => d.imageUrl).where((u) => u.isNotEmpty).toList();
+    if (urls.isEmpty) {
+      _showSnack('لا توجد صور صالحة للتنزيل في هذه المجموعة');
+      return;
+    }
+    _showSnack('جاري تحضير ${urls.length} صورة في ملف واحد...');
+    try {
+      await DownloadService.instance.downloadImagesFromUrls(
+        urls,
+        fileName: '${DocType.shortTitle(docType)}_${bol?.billNumber ?? ''}',
+      );
+    } catch (e) {
+      _showSnack('تعذر تنزيل الصور: $e');
+    }
+  }
+
   Future<void> _confirmDeleteDocument(ShipmentDocument doc) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -440,6 +457,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       [
                         if (b.vesselName.isNotEmpty) 'الباخرة: ${b.vesselName}',
                         if (b.containerCount > 0) '${b.containerCount} حاوية',
+                        if (b.commodityType.isNotEmpty) 'الصنف: ${b.commodityType}',
                         'التاريخ: ${b.date}',
                       ].join(' • '),
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -464,7 +482,19 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(DocType.shortTitle(entry.key), style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(DocType.shortTitle(entry.key), style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                            if (entry.value.length > 1)
+                              TextButton.icon(
+                                onPressed: () => _downloadAllInGroup(entry.key, entry.value),
+                                icon: const Icon(Icons.download_for_offline_outlined, size: 16),
+                                label: Text('تنزيل الكل (${entry.value.length})', style: const TextStyle(fontSize: 12)),
+                                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                              ),
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         SizedBox(
                           height: 110,

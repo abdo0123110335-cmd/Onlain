@@ -213,6 +213,8 @@ class _ScanOCRScreenState extends State<ScanOCRScreen> {
         return 'التقط صورة (أو أكثر) لفاتورة/إيصال إذن الشركة (إذن التسليم)';
       case 'quality':
         return 'التقط صورة (أو أكثر) لإيصال/فاتورة رسوم الجودة';
+      case 'other_docs':
+        return 'التقط صورة (أو أكثر) لأي مستند آخر (شهادة، تصريح، مراسلة...)';
       default:
         return 'التقط صورة المستند';
     }
@@ -230,6 +232,8 @@ class _ScanOCRScreenState extends State<ScanOCRScreen> {
         return Icons.fact_check;
       case 'quality':
         return Icons.verified_outlined;
+      case 'other_docs':
+        return Icons.folder_copy_outlined;
       default:
         return Icons.description;
     }

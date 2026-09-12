@@ -157,6 +157,7 @@ class HomeScreen extends StatelessWidget {
       DocType.storage: Colors.deepPurple,
       DocType.permit: Colors.brown,
       DocType.quality: Colors.green.shade800,
+      DocType.other: Colors.blueGrey.shade700,
     };
     final icons = {
       DocType.ports: Icons.receipt_long,
@@ -164,6 +165,7 @@ class HomeScreen extends StatelessWidget {
       DocType.storage: Icons.warehouse,
       DocType.permit: Icons.fact_check,
       DocType.quality: Icons.verified_outlined,
+      DocType.other: Icons.folder_copy_outlined,
     };
     final titles = {
       DocType.ports: 'فاتورة رسوم موانئ',
@@ -171,6 +173,7 @@ class HomeScreen extends StatelessWidget {
       DocType.storage: 'فاتورة أرضيات الشركة',
       DocType.permit: 'رسوم إذن الشركة',
       DocType.quality: 'فاتورة رسوم الجودة',
+      DocType.other: 'مستندات أخرى',
     };
 
     final rows = <Widget>[];

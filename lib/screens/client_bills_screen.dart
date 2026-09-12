@@ -130,6 +130,7 @@ class _ClientBillsScreenState extends State<ClientBillsScreen> {
                             [
                               if (bill.vesselName.isNotEmpty) bill.vesselName,
                               if (bill.containerCount > 0) '${bill.containerCount} حاوية',
+                              if (bill.commodityType.isNotEmpty) 'الصنف: ${bill.commodityType}',
                               bill.date,
                             ].join(' • '),
                           ),

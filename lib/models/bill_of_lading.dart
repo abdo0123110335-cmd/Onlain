@@ -5,6 +5,7 @@ class BillOfLading {
   String clientName;
   String vesselName;
   int containerCount;
+  String commodityType; // الصنف (نوع البضاعة)
   String date;
 
   BillOfLading({
@@ -14,6 +15,7 @@ class BillOfLading {
     required this.clientName,
     required this.vesselName,
     required this.containerCount,
+    this.commodityType = '',
     required this.date,
   });
 
@@ -24,6 +26,7 @@ class BillOfLading {
     'clientName': clientName,
     'vesselName': vesselName,
     'containerCount': containerCount,
+    'commodityType': commodityType,
     'date': date,
   };
 
@@ -34,6 +37,7 @@ class BillOfLading {
     clientName: map['clientName'] ?? '',
     vesselName: map['vesselName'] ?? '',
     containerCount: (map['containerCount'] as num?)?.toInt() ?? 0,
+    commodityType: map['commodityType'] ?? '',
     date: map['date'] ?? '',
   );
 }

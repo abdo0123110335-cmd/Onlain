@@ -20,6 +20,8 @@ class PDFService {
           return 'فاتورة مطالبة - إذن الشركة';
         case 'quality':
           return 'فاتورة مطالبة - رسوم الجودة';
+        case 'other_docs':
+          return 'فاتورة مطالبة - مستندات أخرى';
       }
     }
     return 'فاتورة مطالبة تخليص';

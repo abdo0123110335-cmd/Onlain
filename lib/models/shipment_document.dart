@@ -6,8 +6,9 @@ class DocType {
   static const storage = 'storage'; // فاتورة أرضيات الشركة
   static const permit = 'permit'; // رسوم إذن الشركة (إذن التسليم)
   static const quality = 'quality'; // رسوم الجودة (هيئة المواصفات والمقاييس)
+  static const other = 'other_docs'; // مستندات أخرى (اسم مستند حر يكتبه المستخدم)
 
-  static const all = [ports, customs, storage, permit, quality];
+  static const all = [ports, customs, storage, permit, quality, other];
 
   static String label(String type) {
     switch (type) {
@@ -21,6 +22,8 @@ class DocType {
         return 'إذن الشركة (إذن التسليم)';
       case quality:
         return 'رسوم الجودة';
+      case other:
+        return 'مستندات أخرى';
       default:
         return type;
     }
@@ -38,6 +41,8 @@ class DocType {
         return 'فاتورة إذن';
       case quality:
         return 'فاتورة الجودة';
+      case other:
+        return 'مستند آخر';
       default:
         return type;
     }
