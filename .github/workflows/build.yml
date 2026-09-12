@@ -35,6 +35,10 @@ jobs:
           echo "Using Gradle file: $GRADLE_FILE"
           sed -i 's/minSdkVersion.*/minSdkVersion 21/g' "$GRADLE_FILE" || true
           sed -i 's/minSdk = .*/minSdk = 21/g' "$GRADLE_FILE" || true
+          sed -i 's/compileSdkVersion.*/compileSdkVersion 35/g' "$GRADLE_FILE" || true
+          sed -i 's/compileSdk = .*/compileSdk = 35/g' "$GRADLE_FILE" || true
+          sed -i 's/targetSdkVersion.*/targetSdkVersion 35/g' "$GRADLE_FILE" || true
+          sed -i 's/targetSdk = .*/targetSdk = 35/g' "$GRADLE_FILE" || true
 
       - name: Write Firebase configuration (google-services.json + firebase_options.dart)
         env:
