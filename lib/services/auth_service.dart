@@ -63,13 +63,14 @@ class AuthService {
     return AppUser.fromMap(uid, doc.data()!);
   }
 
-  /// ينشئ حساب موظف جديد (بريد/باسورد) بصلاحيات محددة، دون تسجيل خروج
-  /// المدير الحالي. يعتمد على تطبيق Firebase ثانوي مؤقت لهذا الغرض فقط.
+  /// ينشئ حساب جديد (موظف أو مدير) بصلاحيات محددة، دون تسجيل خروج المدير
+  /// الحالي. يعتمد على تطبيق Firebase ثانوي مؤقت لهذا الغرض فقط.
   Future<String?> createEmployeeAccount({
     required String name,
     required String username,
     required String password,
     required Map<String, bool> permissions,
+    String role = 'employee',
   }) async {
     FirebaseApp? secondaryApp;
     try {
@@ -88,7 +89,7 @@ class AuthService {
         uid: newUid,
         name: name.trim(),
         email: _usernameToEmail(username),
-        role: 'employee',
+        role: role,
         permissions: permissions,
         active: true,
         createdAt: DateFormat('yyyy/MM/dd').format(DateTime.now()),
@@ -119,6 +120,11 @@ class AuthService {
 
   Future<void> setUserActive(String uid, bool active) async {
     await _db.collection('users').doc(uid).update({'active': active});
+  }
+
+  /// يرقّي موظفاً إلى مدير أو ينزّل مديراً إلى موظف. القيمة المقبولة: 'manager' أو 'employee'.
+  Future<void> updateUserRole(String uid, String role) async {
+    await _db.collection('users').doc(uid).update({'role': role});
   }
 
   String _friendlyAuthError(String code) {
