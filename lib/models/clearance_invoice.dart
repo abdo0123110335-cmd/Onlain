@@ -6,13 +6,12 @@ class ItemCategory {
   static const customs = 'customs';
   static const storage = 'storage';
   static const permit = 'permit';
-  static const quality = 'quality';
   static const fee = 'fee'; // أتعاب الكشف / خدمات التخليص
   static const transport = 'transport';
   static const misc = 'misc';
   static const other = 'other';
 
-  static const all = [ports, customs, storage, permit, quality, fee, transport, misc, other];
+  static const all = [ports, customs, storage, permit, fee, transport, misc, other];
 
   static String label(String category) {
     switch (category) {
@@ -24,8 +23,6 @@ class ItemCategory {
         return 'أرضيات الشركة';
       case permit:
         return 'إذن الشركة';
-      case quality:
-        return 'رسوم الجودة';
       case fee:
         return 'أتعاب الكشف والخدمات';
       case transport:
@@ -82,7 +79,6 @@ class ClearanceInvoice {
   double customsFeesTotal;
   double storageFeesTotal;
   double permitFeesTotal;
-  double qualityFeesTotal;
   double agencyFee;
   double transportFee;
   double miscFee;
@@ -104,7 +100,6 @@ class ClearanceInvoice {
     this.customsFeesTotal = 0,
     this.storageFeesTotal = 0,
     this.permitFeesTotal = 0,
-    this.qualityFeesTotal = 0,
     this.agencyFee = 0,
     this.transportFee = 0,
     this.miscFee = 0,
@@ -117,7 +112,7 @@ class ClearanceInvoice {
 
   double get grandTotal => items.isNotEmpty
       ? itemsTotal
-      : (portFeesTotal + customsFeesTotal + storageFeesTotal + permitFeesTotal + qualityFeesTotal + agencyFee + transportFee + miscFee);
+      : (portFeesTotal + customsFeesTotal + storageFeesTotal + permitFeesTotal + agencyFee + transportFee + miscFee);
 
   double get netPayable => grandTotal - advancePayment;
 
@@ -130,7 +125,6 @@ class ClearanceInvoice {
     customsFeesTotal = sumFor(ItemCategory.customs);
     storageFeesTotal = sumFor(ItemCategory.storage);
     permitFeesTotal = sumFor(ItemCategory.permit);
-    qualityFeesTotal = sumFor(ItemCategory.quality);
     agencyFee = sumFor(ItemCategory.fee);
     transportFee = sumFor(ItemCategory.transport);
     miscFee = sumFor(ItemCategory.misc) +
@@ -156,7 +150,6 @@ class ClearanceInvoice {
     'customsFeesTotal': customsFeesTotal,
     'storageFeesTotal': storageFeesTotal,
     'permitFeesTotal': permitFeesTotal,
-    'qualityFeesTotal': qualityFeesTotal,
     'agencyFee': agencyFee,
     'transportFee': transportFee,
     'miscFee': miscFee,
@@ -181,7 +174,6 @@ class ClearanceInvoice {
     customsFeesTotal: (map['customsFeesTotal'] as num?)?.toDouble() ?? 0,
     storageFeesTotal: (map['storageFeesTotal'] as num?)?.toDouble() ?? 0,
     permitFeesTotal: (map['permitFeesTotal'] as num?)?.toDouble() ?? 0,
-    qualityFeesTotal: (map['qualityFeesTotal'] as num?)?.toDouble() ?? 0,
     agencyFee: (map['agencyFee'] as num?)?.toDouble() ?? 0,
     transportFee: (map['transportFee'] as num?)?.toDouble() ?? 0,
     miscFee: (map['miscFee'] as num?)?.toDouble() ?? 0,

@@ -5,9 +5,8 @@ class DocType {
   static const customs = 'customs'; // إشعار تقييم الجمارك (أسيكودا)
   static const storage = 'storage'; // فاتورة أرضيات الشركة
   static const permit = 'permit'; // رسوم إذن الشركة (إذن التسليم)
-  static const quality = 'quality'; // رسوم الجودة (هيئة المواصفات والمقاييس)
 
-  static const all = [ports, customs, storage, permit, quality];
+  static const all = [ports, customs, storage, permit];
 
   static String label(String type) {
     switch (type) {
@@ -19,8 +18,6 @@ class DocType {
         return 'أرضيات الشركة';
       case permit:
         return 'إذن الشركة (إذن التسليم)';
-      case quality:
-        return 'رسوم الجودة';
       default:
         return type;
     }
@@ -36,8 +33,6 @@ class DocType {
         return 'فاتورة أرضيات';
       case permit:
         return 'فاتورة إذن';
-      case quality:
-        return 'فاتورة الجودة';
       default:
         return type;
     }

@@ -18,8 +18,6 @@ class PDFService {
           return 'فاتورة مطالبة - أرضيات الشركة';
         case 'permit':
           return 'فاتورة مطالبة - إذن الشركة';
-        case 'quality':
-          return 'فاتورة مطالبة - رسوم الجودة';
       }
     }
     return 'فاتورة مطالبة تخليص';
@@ -58,9 +56,6 @@ class PDFService {
       }
       if (invoice.permitFeesTotal > 0) {
         rows.add([DocType.label(DocType.permit), '${invoice.permitFeesTotal.toStringAsFixed(2)} SDG']);
-      }
-      if (invoice.qualityFeesTotal > 0) {
-        rows.add([DocType.label(DocType.quality), '${invoice.qualityFeesTotal.toStringAsFixed(2)} SDG']);
       }
     }
     if (invoice.agencyFee > 0) {

@@ -1,0 +1,210 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Reconstruct Android Folder & Fix SDK Version
+        run: |
+          flutter create . --platforms=android --org com.elsheikhcustoms
+          if [ -f android/app/build.gradle.kts ]; then
+            GRADLE_FILE=android/app/build.gradle.kts
+          else
+            GRADLE_FILE=android/app/build.gradle
+          fi
+          echo "Using Gradle file: $GRADLE_FILE"
+          sed -i 's/minSdkVersion.*/minSdkVersion 21/g' "$GRADLE_FILE" || true
+          sed -i 's/minSdk = .*/minSdk = 21/g' "$GRADLE_FILE" || true
+
+      - name: Write Firebase configuration (google-services.json + firebase_options.dart)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::سر GOOGLE_SERVICES_JSON غير موجود في مستودع GitHub."
+            echo "::error::أضفه من: Settings > Secrets and variables > Actions > New repository secret."
+            echo "::error::القيمة = محتوى ملف google-services.json كاملاً من إعدادات مشروعك في Firebase."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+          # تفعيل إضافة Google Services على مستوى Gradle (يدعم القالبين القديم والجديد)
+          python3 - << 'PYEOF'
+          import os, re
+
+          # 1) تفعيل الإضافة على مستوى المشروع (top-level)
+          if os.path.exists("android/settings.gradle.kts"):
+              path = "android/settings.gradle.kts"
+              content = open(path, encoding="utf-8").read()
+              if "com.google.gms.google-services" not in content:
+                  content = re.sub(
+                      r"(plugins\s*\{\n)",
+                      r'\1    id("com.google.gms.google-services") version "4.4.2" apply false\n',
+                      content,
+                      count=1,
+                  )
+                  open(path, "w", encoding="utf-8").write(content)
+                  print("Patched settings.gradle.kts")
+          elif os.path.exists("android/build.gradle"):
+              path = "android/build.gradle"
+              content = open(path, encoding="utf-8").read()
+              if "com.google.gms:google-services" not in content:
+                  content = re.sub(
+                      r"(dependencies\s*\{)",
+                      r"\1\n        classpath 'com.google.gms:google-services:4.4.2'",
+                      content,
+                      count=1,
+                  )
+                  open(path, "w", encoding="utf-8").write(content)
+                  print("Patched top-level build.gradle")
+
+          # 2) تفعيل الإضافة على مستوى التطبيق (android/app)
+          app_path = "android/app/build.gradle.kts" if os.path.exists("android/app/build.gradle.kts") else "android/app/build.gradle"
+          content = open(app_path, encoding="utf-8").read()
+          is_kts = app_path.endswith(".kts")
+          plugin_line = '    id("com.google.gms.google-services")\n' if is_kts else "    id 'com.google.gms.google-services'\n"
+          if "google-services" not in content:
+              content = re.sub(r"(plugins\s*\{\n)", r"\1" + plugin_line, content, count=1)
+              open(app_path, "w", encoding="utf-8").write(content)
+              print(f"Patched {app_path}")
+          PYEOF
+
+          # توليد lib/firebase_options.dart تلقائياً من قيم google-services.json
+          python3 - << 'PYEOF'
+          import json
+
+          with open("android/app/google-services.json", encoding="utf-8") as f:
+              data = json.load(f)
+
+          project_info = data["project_info"]
+          client = data["client"][0]
+          app_id = client["client_info"]["mobilesdk_app_id"]
+          api_key = client["api_key"][0]["current_key"]
+          project_id = project_info["project_id"]
+          sender_id = project_info["project_number"]
+          storage_bucket = project_info.get("storage_bucket", f"{project_id}.appspot.com")
+
+          content = f'''import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+          import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+
+          /// تم توليد هذا الملف تلقائياً أثناء البناء من android/app/google-services.json
+          class DefaultFirebaseOptions {{
+            static FirebaseOptions get currentPlatform {{
+              if (kIsWeb) {{
+                throw UnsupportedError('هذا الإعداد مخصص لتطبيق أندرويد فقط.');
+              }}
+              switch (defaultTargetPlatform) {{
+                case TargetPlatform.android:
+                  return android;
+                default:
+                  throw UnsupportedError('منصة غير مدعومة حالياً - التطبيق مُعد لأندرويد فقط.');
+              }}
+            }}
+
+            static const FirebaseOptions android = FirebaseOptions(
+              apiKey: '{api_key}',
+              appId: '{app_id}',
+              messagingSenderId: '{sender_id}',
+              projectId: '{project_id}',
+              storageBucket: '{storage_bucket}',
+            );
+          }}
+          '''
+          with open("lib/firebase_options.dart", "w", encoding="utf-8") as f:
+              f.write(content)
+          print("Generated lib/firebase_options.dart")
+          PYEOF
+
+      - name: Add camera & storage permissions to AndroidManifest
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
+            sed -i '/<manifest xmlns:android/a\    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />' "$MANIFEST"
+          fi
+          cat "$MANIFEST"
+
+      - name: Add ProGuard rules for ML Kit text recognition
+        run: |
+          PROGUARD=android/app/proguard-rules.pro
+          touch "$PROGUARD"
+          cat >> "$PROGUARD" << 'EOF'
+
+          # نستخدم فقط قارئ النصوص اللاتينية (Latin) من ML Kit Text Recognition.
+          # المكتبة نفسها تشير إلى مكتبات اللغات الأخرى (صيني/ياباني/كوري/ديفاناغاري)
+          # كخيارات اختيارية غير مضمّنة في المشروع، فيفشل R8 أثناء بناء نسخة الـ
+          # release ما لم نتجاهل التحذيرات الخاصة بها صراحة هنا.
+          -dontwarn com.google.mlkit.vision.text.chinese.**
+          -dontwarn com.google.mlkit.vision.text.devanagari.**
+          -dontwarn com.google.mlkit.vision.text.japanese.**
+          -dontwarn com.google.mlkit.vision.text.korean.**
+          -keep class com.google.mlkit.vision.text.** { *; }
+          -keep class com.google.mlkit.vision.text.latin.** { *; }
+          EOF
+
+      - name: Disable R8 code shrinking for a stable release build
+        run: |
+          python3 - << 'PYEOF'
+          import os
+          import re
+
+          path = "android/app/build.gradle.kts" if os.path.exists("android/app/build.gradle.kts") else "android/app/build.gradle"
+          is_kts = path.endswith(".kts")
+          print(f"Patching: {path}")
+
+          with open(path, "r", encoding="utf-8") as f:
+              content = f.read()
+
+          if is_kts:
+              content = re.sub(r"isMinifyEnabled\s*=\s*true", "isMinifyEnabled = false", content)
+              content = re.sub(r"isShrinkResources\s*=\s*true", "isShrinkResources = false", content)
+              flag_present = "isMinifyEnabled" in content
+              off_block = "\n            isMinifyEnabled = false\n            isShrinkResources = false"
+          else:
+              content = re.sub(r"minifyEnabled\s+true", "minifyEnabled false", content)
+              content = re.sub(r"shrinkResources\s+true", "shrinkResources false", content)
+              flag_present = "minifyEnabled" in content
+              off_block = "\n            minifyEnabled false\n            shrinkResources false"
+
+          if not flag_present:
+              match = re.search(r"release\s*\{", content)
+              if not match:
+                  raise SystemExit(f"Could not find a release {{ }} block in {path} to patch.")
+              insert_at = match.end()
+              content = content[:insert_at] + off_block + content[insert_at:]
+
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print(f"Done - {path} release build will no longer be minified/shrunk by R8.")
+          PYEOF
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk

@@ -79,20 +79,6 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            if (!isManager) ...[
-              _buildActionButton(
-                context,
-                title: 'عرض المستندات وتنزيلها',
-                icon: Icons.folder_open,
-                color: Colors.indigo,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ClientsScreen(appUser: appUser)),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-
             if (isManager) ...[
               const Text(
                 'إدارة النظام (المدير فقط)',
@@ -107,10 +93,7 @@ class HomeScreen extends StatelessWidget {
                       title: 'قسم الفواتير',
                       icon: Icons.folder_special,
                       color: Colors.orange.shade800,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => ClientsScreen(appUser: appUser)),
-                      ),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientsScreen())),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -156,21 +139,18 @@ class HomeScreen extends StatelessWidget {
       DocType.customs: const Color(0xFF003366),
       DocType.storage: Colors.deepPurple,
       DocType.permit: Colors.brown,
-      DocType.quality: Colors.green.shade800,
     };
     final icons = {
       DocType.ports: Icons.receipt_long,
       DocType.customs: Icons.document_scanner,
       DocType.storage: Icons.warehouse,
       DocType.permit: Icons.fact_check,
-      DocType.quality: Icons.verified_outlined,
     };
     final titles = {
       DocType.ports: 'فاتورة رسوم موانئ',
       DocType.customs: 'فاتورة إشعار أسيكودا',
       DocType.storage: 'فاتورة أرضيات الشركة',
       DocType.permit: 'رسوم إذن الشركة',
-      DocType.quality: 'فاتورة رسوم الجودة',
     };
 
     final rows = <Widget>[];

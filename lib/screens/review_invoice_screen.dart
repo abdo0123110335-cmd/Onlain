@@ -210,7 +210,7 @@ class _ReviewInvoiceScreenState extends State<ReviewInvoiceScreen> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ المستند وربطه بملف العميل بنجاح')));
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => InvoiceDetailScreen(billOfLadingId: bolId, appUser: widget.appUser)),
+      MaterialPageRoute(builder: (_) => InvoiceDetailScreen(billOfLadingId: bolId)),
       (route) => route.isFirst,
     );
   }

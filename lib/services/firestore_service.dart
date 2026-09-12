@@ -40,16 +40,6 @@ class FirestoreService {
     await _clients.doc(client.id).set(client.toMap());
   }
 
-  /// يحذف عميلاً بالكامل مع كل بوالصه وفواتيره ومستنداته ومدفوعاته المرتبطة
-  /// به (حذف متتالي/cascade). يُستخدم من المدير فقط.
-  Future<void> deleteClient(String clientId) async {
-    final bolsSnap = await _bols.where('clientId', isEqualTo: clientId).get();
-    for (final bolDoc in bolsSnap.docs) {
-      await deleteBillOfLading(bolDoc.id);
-    }
-    await _clients.doc(clientId).delete();
-  }
-
   /// يبحث عن عميل معتمَد بنفس الاسم، وإلا يُنشئ عميلاً جديداً معتمَداً مباشرة.
   /// يُستخدم فقط في مسار المدير (رفع مباشر بدون مراجعة).
   Future<Client> findOrCreateClientByName(String name, {String createdByName = ''}) async {
@@ -97,22 +87,6 @@ class FirestoreService {
 
   Future<void> insertBillOfLading(BillOfLading bol) async {
     await _bols.doc(bol.id).set(bol.toMap());
-  }
-
-  /// يحذف بوليصة واحدة بكل ما يتبعها: الفاتورة الموحّدة، كل المدفوعات، وكل
-  /// المستندات المعتمدة المرتبطة بها (لا يحذف الصور من Cloudinary، فقط سجلاتها
-  /// من قاعدة البيانات). يُستخدم من المدير فقط.
-  Future<void> deleteBillOfLading(String billOfLadingId) async {
-    final paymentsSnap = await _payments.where('billOfLadingId', isEqualTo: billOfLadingId).get();
-    for (final d in paymentsSnap.docs) {
-      await d.reference.delete();
-    }
-    final docsSnap = await _documents.where('billOfLadingId', isEqualTo: billOfLadingId).get();
-    for (final d in docsSnap.docs) {
-      await d.reference.delete();
-    }
-    await _invoices.doc(billOfLadingId).delete();
-    await _bols.doc(billOfLadingId).delete();
   }
 
   // ==================== الفاتورة الموحّدة لكل بوليصة ====================
@@ -189,12 +163,6 @@ class FirestoreService {
   Future<List<ShipmentDocument>> getDocumentsForBillOfLading(String billOfLadingId) async {
     final snap = await _documents.where('billOfLadingId', isEqualTo: billOfLadingId).get();
     return snap.docs.map((d) => ShipmentDocument.fromMap(d.data() as Map<String, dynamic>)).toList();
-  }
-
-  /// يحذف صورة/مستند واحد فقط من ملف البوليصة (لا يحذف بقية المستندات ولا
-  /// الفاتورة). يُستخدم من المدير فقط.
-  Future<void> deleteShipmentDocument(String documentId) async {
-    await _documents.doc(documentId).delete();
   }
 
   // ==================== المستندات المعلّقة (بانتظار اعتماد المدير) ====================

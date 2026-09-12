@@ -2,26 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
-/// يرفع صور المستندات إلى Cloudinary بدلاً من Firebase Storage (لأن Firebase
-/// Storage يتطلب ترقية المشروع لخطة Blaze المدفوعة وربط بطاقة بنكية، بينما
-/// Cloudinary يوفر نطاقاً مجانياً سخياً (25GB) بدون أي بطاقة).
 class StorageService {
   StorageService._();
   static final StorageService instance = StorageService._();
 
-  // ⚠️ عدّل القيمتين دول بالضبط زي ما ظهروا لك في حساب Cloudinary:
-  // 1) Cloud name: من الـ Dashboard الرئيسي بعد تسجيل الدخول.
-  // 2) Upload preset: من Settings → Upload → Upload presets (لازم يكون
-  //    Signing Mode = Unsigned).
   static const String _cloudName = 'lw8andem';
   static const String _uploadPreset = 'elsheikh_uploads';
 
   Uri get _uploadUrl => Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
 
-  /// يرفع صورة مستند واحدة ويرجع رابط التحميل المباشر (secure_url) من Cloudinary.
-  /// clientKey و billNumber بنمررهم كـ "folder" منطقي داخل Cloudinary، بنفس فكرة
-  /// المسار اللي كان مستخدم في Firebase Storage، عشان تفضل الصور منظمة حسب
-  /// العميل ورقم البوليصة.
   Future<String> uploadDocumentImage({
     required File file,
     required String clientKey,
