@@ -32,11 +32,15 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
-    // بوالص الشحن، الفواتير، المدفوعات، المستندات المعتمدة: قسم الفواتير -
-    // المدير فقط هو من يفتحها أو يعدّل فيها أو حتى يقرأها.
+    // بوالص الشحن والمستندات المعتمدة: أي مستخدم مسجّل دخول (مدير أو موظف)
+    // يقدر يقرأها فقط (عشان يفتح ملف العميل ويحمّل صور المستندات)، لكن
+    // التعديل/الحذف يقتصر على المدير فقط.
     match /bill_of_ladings/{id} {
-      allow read, write: if isManager();
+      allow read: if isSignedIn();
+      allow write: if isManager();
     }
+    // الفواتير والمدفوعات: بيانات مالية حساسة، القراءة والكتابة للمدير فقط،
+    // حتى لا يرى الموظف أي مبلغ أو بند فاتورة إطلاقاً.
     match /invoices/{id} {
       allow read, write: if isManager();
     }
@@ -44,7 +48,8 @@ service cloud.firestore {
       allow read, write: if isManager();
     }
     match /shipment_documents/{id} {
-      allow read, write: if isManager();
+      allow read: if isSignedIn();
+      allow write: if isManager();
     }
 
     // المستندات المعلقة: أي موظف مسجّل دخول يمكنه إنشاء طلب جديد (رفع مستند)،

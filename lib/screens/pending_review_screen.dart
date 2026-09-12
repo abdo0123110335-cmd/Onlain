@@ -14,6 +14,7 @@ class PendingReviewScreen extends StatefulWidget {
 
 class _PendingReviewScreenState extends State<PendingReviewScreen> {
   bool isLoading = true;
+  String? loadError;
   List<PendingDocument> pending = [];
   final Set<String> _busyIds = {};
 
@@ -24,13 +25,24 @@ class _PendingReviewScreenState extends State<PendingReviewScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => isLoading = true);
-    final list = await FirestoreService.instance.getPendingDocuments();
-    if (!mounted) return;
     setState(() {
-      pending = list;
-      isLoading = false;
+      isLoading = true;
+      loadError = null;
     });
+    try {
+      final list = await FirestoreService.instance.getPendingDocuments();
+      if (!mounted) return;
+      setState(() {
+        pending = list;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+        loadError = 'تعذر تحميل الطلبات المعلّقة: $e';
+      });
+    }
   }
 
   Future<void> _approve(PendingDocument pd) async {
@@ -122,7 +134,21 @@ class _PendingReviewScreenState extends State<PendingReviewScreen> {
       appBar: AppBar(title: const Text('مراجعة الطلبات المعلقة')),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : pending.isEmpty
+          : loadError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(loadError!, textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        ElevatedButton(onPressed: _load, child: const Text('إعادة المحاولة')),
+                      ],
+                    ),
+                  ),
+                )
+              : pending.isEmpty
               ? const Center(child: Text('لا توجد طلبات بانتظار المراجعة حالياً.'))
               : RefreshIndicator(
                   onRefresh: _load,
