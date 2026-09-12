@@ -73,6 +73,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final userCtrl = TextEditingController();
     final passCtrl = TextEditingController();
     final perms = {for (final t in DocType.all) t: false};
+    String role = 'employee';
     String? error;
     bool creating = false;
 
@@ -104,14 +105,42 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 const SizedBox(height: 14),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Text('الصلاحيات (الأقسام المسموح رفع مستندات فيها):', style: Theme.of(ctx).textTheme.bodySmall),
+                  child: Text('نوع الحساب:', style: Theme.of(ctx).textTheme.bodySmall),
                 ),
-                ...DocType.all.map((t) => CheckboxListTile(
-                      dense: true,
-                      value: perms[t],
-                      title: Text(DocType.shortTitle(t)),
-                      onChanged: (v) => setDialogState(() => perms[t] = v ?? false),
-                    )),
+                RadioListTile<String>(
+                  dense: true,
+                  value: 'employee',
+                  groupValue: role,
+                  title: const Text('موظف'),
+                  onChanged: (v) => setDialogState(() => role = v ?? 'employee'),
+                ),
+                RadioListTile<String>(
+                  dense: true,
+                  value: 'manager',
+                  groupValue: role,
+                  title: const Text('مدير (صلاحية كاملة على كل الأقسام)'),
+                  onChanged: (v) => setDialogState(() => role = v ?? 'employee'),
+                ),
+                if (role == 'employee') ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('الصلاحيات (الأقسام المسموح رفع مستندات فيها):', style: Theme.of(ctx).textTheme.bodySmall),
+                  ),
+                  ...DocType.all.map((t) => CheckboxListTile(
+                        dense: true,
+                        value: perms[t],
+                        title: Text(DocType.shortTitle(t)),
+                        onChanged: (v) => setDialogState(() => perms[t] = v ?? false),
+                      )),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'حساب المدير يرى كل الأقسام ويقدر يحذف/يعدّل تلقائياً، فلا حاجة لتحديد صلاحيات.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                  ),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -139,6 +168,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         username: userCtrl.text.trim(),
                         password: passCtrl.text.trim(),
                         permissions: perms,
+                        role: role,
                       );
                       if (result != null) {
                         setDialogState(() {
@@ -157,6 +187,33 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         ),
       ),
     );
+    _load();
+  }
+
+  Future<void> _confirmChangeRole(AppUser u, String newRole) async {
+    final isPromoting = newRole == 'manager';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isPromoting ? 'ترقية إلى مدير' : 'تنزيل إلى موظف'),
+        content: Text(
+          isPromoting
+              ? 'سيصبح "${u.name}" مديراً ويرى كل الأقسام والعملاء والفواتير، ويقدر يحذف ويعدّل بلا قيود. هل أنت متأكد؟'
+              : 'سيصبح "${u.name}" موظفاً عادياً، ولازم تحدد له الصلاحيات (الأقسام المسموح له برفع مستندات فيها) بعد التنزيل مباشرة. هل أنت متأكد؟',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await AuthService.instance.updateUserRole(u.uid, newRole);
+    if (!isPromoting) {
+      // عند التنزيل لموظف، الصلاحيات فاضية افتراضياً - نفتح شاشة تحديدها فوراً.
+      final refreshed = (await AuthService.instance.getAllUsers()).firstWhere((x) => x.uid == u.uid);
+      await _editPermissions(refreshed);
+    }
     _load();
   }
 
@@ -192,18 +249,24 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                           : 'يوزر: ${u.username}\nالصلاحيات: ${allowedSections.isEmpty ? 'لا توجد' : allowedSections}',
                     ),
                     isThreeLine: !u.isManager,
-                    trailing: u.isManager
-                        ? null
-                        : PopupMenuButton<String>(
-                            onSelected: (v) {
-                              if (v == 'perms') _editPermissions(u);
-                              if (v == 'toggle') _toggleActive(u);
-                            },
-                            itemBuilder: (ctx) => [
-                              const PopupMenuItem(value: 'perms', child: Text('تعديل الصلاحيات')),
-                              PopupMenuItem(value: 'toggle', child: Text(u.active ? 'إيقاف الحساب' : 'تفعيل الحساب')),
-                            ],
-                          ),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (v) {
+                        if (v == 'perms') _editPermissions(u);
+                        if (v == 'toggle') _toggleActive(u);
+                        if (v == 'promote') _confirmChangeRole(u, 'manager');
+                        if (v == 'demote') _confirmChangeRole(u, 'employee');
+                      },
+                      itemBuilder: (ctx) => [
+                        if (!u.isManager) ...[
+                          const PopupMenuItem(value: 'perms', child: Text('تعديل الصلاحيات')),
+                          PopupMenuItem(value: 'toggle', child: Text(u.active ? 'إيقاف الحساب' : 'تفعيل الحساب')),
+                          const PopupMenuItem(value: 'promote', child: Text('ترقية إلى مدير')),
+                        ] else ...[
+                          PopupMenuItem(value: 'toggle', child: Text(u.active ? 'إيقاف الحساب' : 'تفعيل الحساب')),
+                          const PopupMenuItem(value: 'demote', child: Text('تنزيل إلى موظف')),
+                        ],
+                      ],
+                    ),
                   ),
                 );
               },
