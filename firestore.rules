@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isManager() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && myProfile().role == 'manager';
+    }
+
+    // ملفات تعريف المستخدمين: كل مستخدم يقرأ ملفه فقط، والمدير يقرأ ويكتب الجميع.
+    // إنشاء أول حساب مدير (bootstrap) وإنشاء حسابات الموظفين الجدد من التطبيق مسموح.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isManager());
+      allow create: if isSignedIn() && (request.auth.uid == uid || isManager());
+      allow update: if isManager();
+      allow delete: if isManager();
+    }
+
+    // العملاء: القراءة مسموحة لأي مستخدم مسجّل دخول (حتى يختار الموظف من
+    // القائمة عند الرفع)، لكن الكتابة/التعديل/الحذف للمدير فقط.
+    match /clients/{clientId} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
+    }
+
+    // بوالص الشحن والمستندات المعتمدة: أي مستخدم مسجّل دخول (مدير أو موظف)
+    // يقدر يقرأها فقط (عشان يفتح ملف العميل ويحمّل صور المستندات)، لكن
+    // التعديل/الحذف يقتصر على المدير فقط.
+    match /bill_of_ladings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
+    }
+    // الفواتير والمدفوعات: بيانات مالية حساسة، القراءة والكتابة للمدير فقط،
+    // حتى لا يرى الموظف أي مبلغ أو بند فاتورة إطلاقاً.
+    match /invoices/{id} {
+      allow read, write: if isManager();
+    }
+    match /payments/{id} {
+      allow read, write: if isManager();
+    }
+    match /shipment_documents/{id} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
+    }
+
+    // المستندات المعلقة: أي موظف مسجّل دخول يمكنه إنشاء طلب جديد (رفع مستند)،
+    // لكن قراءة/اعتماد/رفض القائمة بالكامل يقتصر على المدير فقط.
+    match /pending_documents/{id} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isManager();
+    }
+  }
+}
